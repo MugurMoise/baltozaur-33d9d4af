@@ -47,6 +47,13 @@ export type Database = {
             foreignKeyName: "lake_scores_lake_id_fkey"
             columns: ["lake_id"]
             isOneToOne: false
+            referencedRelation: "lake_scores_by_day"
+            referencedColumns: ["lake_id"]
+          },
+          {
+            foreignKeyName: "lake_scores_lake_id_fkey"
+            columns: ["lake_id"]
+            isOneToOne: false
             referencedRelation: "lakes"
             referencedColumns: ["id"]
           },
@@ -85,6 +92,21 @@ export type Database = {
       }
     }
     Views: {
+      lake_scores_by_day: {
+        Row: {
+          calculated_at: string | null
+          county: string | null
+          distance_km: number | null
+          lake_id: string | null
+          name: string | null
+          pressure: number | null
+          score: number | null
+          score_date: string | null
+          temperature: number | null
+          wind_speed: number | null
+        }
+        Relationships: []
+      }
       latest_lake_scores: {
         Row: {
           calculated_at: string | null

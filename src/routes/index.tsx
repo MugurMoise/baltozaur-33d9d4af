@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LakeCard } from "@/components/LakeCard";
-import { Fish, RefreshCw, Waves, Trophy, Sparkles } from "lucide-react";
+import { Fish, RefreshCw, Waves, Trophy, Sparkles, Calendar as CalendarIcon } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -30,6 +31,24 @@ type Row = {
   calculated_at: string | null;
 };
 
+type ScoreRow = {
+  lake_id: string;
+  score: number;
+  temperature: number;
+  pressure: number;
+  wind_speed: number;
+  calculated_at: string;
+  lakes: { name: string; county: string | null; distance_km: number | null } | null;
+};
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function isoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
 function timeAgo(iso?: string | null) {
   if (!iso) return "—";
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
@@ -41,16 +60,53 @@ function timeAgo(iso?: string | null) {
   return new Date(iso).toLocaleDateString("en-GB");
 }
 
+function buildDateOptions() {
+  const today = startOfDay(new Date());
+  return Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d;
+  });
+}
+
 function Home() {
+  const dateOptions = useMemo(buildDateOptions, []);
+  const [selectedDate, setSelectedDate] = useState<string>(isoDate(dateOptions[0]));
+
   const { data, isLoading, isFetching, refetch, error } = useQuery({
-    queryKey: ["latest_lake_scores"],
+    queryKey: ["lake_scores_by_date", selectedDate],
     queryFn: async () => {
+      const start = new Date(selectedDate + "T00:00:00");
+      const end = new Date(start);
+      end.setDate(start.getDate() + 1);
+
       const { data, error } = await supabase
-        .from("latest_lake_scores")
-        .select("*")
+        .from("lake_scores")
+        .select("lake_id, score, temperature, pressure, wind_speed, calculated_at, lakes(name, county, distance_km)")
+        .gte("calculated_at", start.toISOString())
+        .lt("calculated_at", end.toISOString())
         .order("score", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as Row[];
+
+      // Deduplicate: keep highest-scoring row per lake for the day
+      const seen = new Set<string>();
+      const rows: Row[] = [];
+      for (const r of (data ?? []) as ScoreRow[]) {
+        if (seen.has(r.lake_id)) continue;
+        seen.add(r.lake_id);
+        rows.push({
+          lake_id: r.lake_id,
+          name: r.lakes?.name ?? "—",
+          county: r.lakes?.county ?? null,
+          distance_km: r.lakes?.distance_km ?? null,
+          score: r.score,
+          temperature: r.temperature,
+          pressure: r.pressure,
+          wind_speed: r.wind_speed,
+          calculated_at: r.calculated_at,
+        });
+      }
+      return rows;
     },
   });
 
@@ -63,6 +119,7 @@ function Home() {
 
   const topLakes = lakes.slice(0, 3);
   const bestConditions = lakes.filter((l) => (l.score ?? 0) >= 75);
+  const isToday = selectedDate === isoDate(dateOptions[0]);
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-xl px-4 pb-16 pt-8">
@@ -92,6 +149,44 @@ function Home() {
         </button>
       </header>
 
+      {/* Date selector */}
+      <section className="mb-5">
+        <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+          <CalendarIcon className="h-3.5 w-3.5" />
+          Forecast date
+        </div>
+        <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-2">
+            {dateOptions.map((d, i) => {
+              const iso = isoDate(d);
+              const active = iso === selectedDate;
+              const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
+              const day = d.getDate();
+              const month = d.toLocaleDateString("en-GB", { month: "short" });
+              return (
+                <button
+                  key={iso}
+                  onClick={() => setSelectedDate(iso)}
+                  className={`flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 transition-colors ${
+                    active
+                      ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
+                      : "border-border bg-card text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">
+                    {i === 0 ? "Today" : weekday}
+                  </span>
+                  <span className={`mt-0.5 text-lg font-bold leading-none ${active ? "" : "text-foreground"}`}>
+                    {day}
+                  </span>
+                  <span className="mt-0.5 text-[10px] opacity-80">{month}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       <section
         className="mb-6 rounded-2xl border border-border p-4"
         style={{ background: "var(--gradient-card)" }}
@@ -102,8 +197,18 @@ function Home() {
             <p className="mt-0.5 text-2xl font-bold tracking-tight">{lakes.length}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Last updated</p>
-            <p className="mt-0.5 text-sm font-medium">{timeAgo(lastUpdated)}</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              {isToday ? "Last updated" : "Forecast for"}
+            </p>
+            <p className="mt-0.5 text-sm font-medium">
+              {isToday
+                ? timeAgo(lastUpdated)
+                : new Date(selectedDate).toLocaleDateString("en-GB", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "short",
+                  })}
+            </p>
           </div>
         </div>
       </section>
@@ -120,14 +225,21 @@ function Home() {
             <div key={i} className="h-32 animate-pulse rounded-2xl bg-card/60" />
           ))}
         </div>
+      ) : lakes.length === 0 ? (
+        <div
+          className="rounded-2xl border border-border p-6 text-center text-sm text-muted-foreground"
+          style={{ background: "var(--gradient-card)" }}
+        >
+          No forecast available for this date yet.
+        </div>
       ) : (
         <>
           {topLakes.length > 0 && (
             <section className="mb-7">
               <SectionHeader
                 icon={<Trophy className="h-4 w-4 text-[var(--color-score-mid)]" />}
-                title="Top Lakes Today"
-                subtitle="Highest scoring spots right now"
+                title="Top Lakes"
+                subtitle={isToday ? "Highest scoring spots right now" : "Highest scoring spots for this day"}
               />
               <ul className="mt-3 space-y-3">
                 {topLakes.map((l, i) => (
@@ -155,7 +267,7 @@ function Home() {
               subtitle={
                 bestConditions.length
                   ? `${bestConditions.length} lake${bestConditions.length > 1 ? "s" : ""} in excellent shape`
-                  : "No lakes in peak condition right now"
+                  : "No lakes in peak condition"
               }
             />
             {bestConditions.length > 0 ? (
@@ -180,7 +292,7 @@ function Home() {
                 className="mt-3 rounded-2xl border border-border p-5 text-sm text-muted-foreground"
                 style={{ background: "var(--gradient-card)" }}
               >
-                Conditions are average today — check back later.
+                Conditions are average — try another date.
               </div>
             )}
           </section>
