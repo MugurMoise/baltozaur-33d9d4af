@@ -246,16 +246,7 @@ function Home() {
               <ul className="mt-3 space-y-3">
                 {topLakes.map((l, i) => (
                   <li key={l.lake_id ?? `top-${i}`}>
-                    <LakeCard
-                      name={l.name ?? "—"}
-                      county={l.county}
-                      distance_km={l.distance_km}
-                      score={l.score}
-                      temperature={l.temperature}
-                      pressure={l.pressure}
-                      wind_speed={l.wind_speed}
-                      rank={i + 1}
-                    />
+                    <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                   </li>
                 ))}
               </ul>
