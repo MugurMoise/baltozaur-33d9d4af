@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LakeCard } from "@/components/LakeCard";
+import { LakeDetailSheet } from "@/components/LakeDetailSheet";
 import { Fish, RefreshCw, Waves, Trophy, Sparkles, Calendar as CalendarIcon } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -72,6 +73,7 @@ function buildDateOptions() {
 function Home() {
   const dateOptions = useMemo(buildDateOptions, []);
   const [selectedDate, setSelectedDate] = useState<string>(isoDate(dateOptions[0]));
+  const [activeLake, setActiveLake] = useState<Row | null>(null);
 
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["lake_scores_by_date", selectedDate],
@@ -244,16 +246,7 @@ function Home() {
               <ul className="mt-3 space-y-3">
                 {topLakes.map((l, i) => (
                   <li key={l.lake_id ?? `top-${i}`}>
-                    <LakeCard
-                      name={l.name ?? "—"}
-                      county={l.county}
-                      distance_km={l.distance_km}
-                      score={l.score}
-                      temperature={l.temperature}
-                      pressure={l.pressure}
-                      wind_speed={l.wind_speed}
-                      rank={i + 1}
-                    />
+                    <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                   </li>
                 ))}
               </ul>
@@ -274,16 +267,7 @@ function Home() {
               <ul className="mt-3 space-y-3">
                 {bestConditions.map((l, i) => (
                   <li key={l.lake_id ?? `best-${i}`}>
-                    <LakeCard
-                      name={l.name ?? "—"}
-                      county={l.county}
-                      distance_km={l.distance_km}
-                      score={l.score}
-                      temperature={l.temperature}
-                      pressure={l.pressure}
-                      wind_speed={l.wind_speed}
-                      rank={i + 1}
-                    />
+                    <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                   </li>
                 ))}
               </ul>
@@ -306,16 +290,7 @@ function Home() {
             <ul className="mt-3 space-y-3">
               {lakes.map((l, i) => (
                 <li key={l.lake_id ?? `all-${i}`}>
-                  <LakeCard
-                    name={l.name ?? "—"}
-                    county={l.county}
-                    distance_km={l.distance_km}
-                    score={l.score}
-                    temperature={l.temperature}
-                    pressure={l.pressure}
-                    wind_speed={l.wind_speed}
-                    rank={i + 1}
-                  />
+                  <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                 </li>
               ))}
             </ul>
@@ -326,7 +301,43 @@ function Home() {
       <footer className="mt-8 text-center text-xs text-muted-foreground">
         Updated periodically · score reflects estimated carp activity
       </footer>
+
+      <LakeDetailSheet
+        lake={activeLake}
+        selectedDate={selectedDate}
+        open={activeLake !== null}
+        onOpenChange={(v) => !v && setActiveLake(null)}
+      />
     </main>
+  );
+}
+
+function LakeCardButton({
+  lake,
+  rank,
+  onSelect,
+}: {
+  lake: Row;
+  rank: number;
+  onSelect: (l: Row) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(lake)}
+      className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-2xl"
+    >
+      <LakeCard
+        name={lake.name ?? "—"}
+        county={lake.county}
+        distance_km={lake.distance_km}
+        score={lake.score}
+        temperature={lake.temperature}
+        pressure={lake.pressure}
+        wind_speed={lake.wind_speed}
+        rank={rank}
+      />
+    </button>
   );
 }
 
