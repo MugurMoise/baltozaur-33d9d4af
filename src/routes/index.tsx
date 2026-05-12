@@ -290,16 +290,7 @@ function Home() {
             <ul className="mt-3 space-y-3">
               {lakes.map((l, i) => (
                 <li key={l.lake_id ?? `all-${i}`}>
-                  <LakeCard
-                    name={l.name ?? "—"}
-                    county={l.county}
-                    distance_km={l.distance_km}
-                    score={l.score}
-                    temperature={l.temperature}
-                    pressure={l.pressure}
-                    wind_speed={l.wind_speed}
-                    rank={i + 1}
-                  />
+                  <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                 </li>
               ))}
             </ul>
@@ -310,7 +301,43 @@ function Home() {
       <footer className="mt-8 text-center text-xs text-muted-foreground">
         Updated periodically · score reflects estimated carp activity
       </footer>
+
+      <LakeDetailSheet
+        lake={activeLake}
+        selectedDate={selectedDate}
+        open={activeLake !== null}
+        onOpenChange={(v) => !v && setActiveLake(null)}
+      />
     </main>
+  );
+}
+
+function LakeCardButton({
+  lake,
+  rank,
+  onSelect,
+}: {
+  lake: Row;
+  rank: number;
+  onSelect: (l: Row) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(lake)}
+      className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-2xl"
+    >
+      <LakeCard
+        name={lake.name ?? "—"}
+        county={lake.county}
+        distance_km={lake.distance_km}
+        score={lake.score}
+        temperature={lake.temperature}
+        pressure={lake.pressure}
+        wind_speed={lake.wind_speed}
+        rank={rank}
+      />
+    </button>
   );
 }
 
