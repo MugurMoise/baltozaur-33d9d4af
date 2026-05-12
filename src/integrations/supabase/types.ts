@@ -14,10 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      lake_scores: {
+        Row: {
+          calculated_at: string
+          id: string
+          lake_id: string
+          pressure: number
+          score: number
+          temperature: number
+          wind_speed: number
+        }
+        Insert: {
+          calculated_at?: string
+          id?: string
+          lake_id: string
+          pressure: number
+          score: number
+          temperature: number
+          wind_speed: number
+        }
+        Update: {
+          calculated_at?: string
+          id?: string
+          lake_id?: string
+          pressure?: number
+          score?: number
+          temperature?: number
+          wind_speed?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lake_scores_lake_id_fkey"
+            columns: ["lake_id"]
+            isOneToOne: false
+            referencedRelation: "lakes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lake_scores_lake_id_fkey"
+            columns: ["lake_id"]
+            isOneToOne: false
+            referencedRelation: "latest_lake_scores"
+            referencedColumns: ["lake_id"]
+          },
+        ]
+      }
+      lakes: {
+        Row: {
+          county: string
+          created_at: string
+          distance_km: number
+          id: string
+          name: string
+        }
+        Insert: {
+          county: string
+          created_at?: string
+          distance_km: number
+          id?: string
+          name: string
+        }
+        Update: {
+          county?: string
+          created_at?: string
+          distance_km?: number
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      latest_lake_scores: {
+        Row: {
+          calculated_at: string | null
+          county: string | null
+          distance_km: number | null
+          lake_id: string | null
+          name: string | null
+          pressure: number | null
+          score: number | null
+          temperature: number | null
+          wind_speed: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
