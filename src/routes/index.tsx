@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LakeCard } from "@/components/LakeCard";
+import { LakeDetailSheet } from "@/components/LakeDetailSheet";
 import { Fish, RefreshCw, Waves, Trophy, Sparkles, Calendar as CalendarIcon } from "lucide-react";
 
 export const Route = createFileRoute("/")({
