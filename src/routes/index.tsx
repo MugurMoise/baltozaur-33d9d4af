@@ -73,6 +73,7 @@ function buildDateOptions() {
 function Home() {
   const dateOptions = useMemo(buildDateOptions, []);
   const [selectedDate, setSelectedDate] = useState<string>(isoDate(dateOptions[0]));
+  const [activeLake, setActiveLake] = useState<Row | null>(null);
 
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["lake_scores_by_date", selectedDate],
