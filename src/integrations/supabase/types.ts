@@ -17,29 +17,38 @@ export type Database = {
       lake_scores: {
         Row: {
           calculated_at: string
+          feeding_windows: Json
           id: string
           lake_id: string
           pressure: number
+          pressure_delta: number | null
           score: number
           temperature: number
+          temperature_delta: number | null
           wind_speed: number
         }
         Insert: {
           calculated_at?: string
+          feeding_windows?: Json
           id?: string
           lake_id: string
           pressure: number
+          pressure_delta?: number | null
           score: number
           temperature: number
+          temperature_delta?: number | null
           wind_speed: number
         }
         Update: {
           calculated_at?: string
+          feeding_windows?: Json
           id?: string
           lake_id?: string
           pressure?: number
+          pressure_delta?: number | null
           score?: number
           temperature?: number
+          temperature_delta?: number | null
           wind_speed?: number
         }
         Relationships: [
@@ -118,11 +127,16 @@ export type Database = {
           calculated_at: string | null
           county: string | null
           distance_km: number | null
+          feeding_windows: Json | null
           lake_id: string | null
+          lat: number | null
+          lon: number | null
           name: string | null
           pressure: number | null
+          pressure_delta: number | null
           score: number | null
           temperature: number | null
+          temperature_delta: number | null
           wind_speed: number | null
         }
         Relationships: []

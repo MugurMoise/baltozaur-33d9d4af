@@ -35,13 +35,13 @@ export function LakeDetailSheet({
   onOpenChange,
 }: {
   lake: Lake | null;
-  selectedDate: string;
+  selectedDate?: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
   const s = lake?.score ?? 0;
   const tone = scoreTone(s);
-  const dateLabel = new Date(selectedDate).toLocaleDateString("en-GB", {
+  const dateLabel = (selectedDate ? new Date(selectedDate) : new Date()).toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
     month: "long",
