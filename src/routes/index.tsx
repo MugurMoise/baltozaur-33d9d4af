@@ -5,7 +5,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { LakeCard, type FeedingWindow } from "@/components/LakeCard";
 import { LakeDetailSheet } from "@/components/LakeDetailSheet";
 import { LakesMap, type MapLake } from "@/components/LakesMap";
-import { Fish, RefreshCw, Waves, Trophy, Sparkles, Map as MapIcon } from "lucide-react";
+import { Fish, RefreshCw, Waves, Trophy, Sparkles, Map as MapIcon, Calendar as CalendarIcon } from "lucide-react";
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function isoDate(d: Date) {
+  return startOfDay(d).toISOString();
+}
+function buildDateOptions() {
+  const today = startOfDay(new Date());
+  return Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d;
+  });
+}
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -58,25 +75,41 @@ function timeAgo(iso?: string | null) {
 
 function Home() {
   const [activeLake, setActiveLake] = useState<Lake | null>(null);
+  const dateOptions = buildDateOptions();
+  const [selectedDate, setSelectedDate] = useState<string>(isoDate(new Date()));
+  const isToday = selectedDate === isoDate(new Date());
 
   const { data, isLoading, isFetching, refetch, error } = useQuery({
-    queryKey: ["latest_lake_scores"],
+    queryKey: ["lake_scores_by_date", selectedDate],
     queryFn: async () => {
+      const start = new Date(selectedDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+
       const { data, error } = await supabase
-        .from("latest_lake_scores")
-        .select("*")
+        .from("lake_scores")
+        .select(
+          "lake_id, score, temperature, temperature_delta, pressure, pressure_delta, wind_speed, feeding_windows, calculated_at, lakes(name, county, distance_km, latitude, longitude)",
+        )
+        .gte("calculated_at", start.toISOString())
+        .lt("calculated_at", end.toISOString())
         .order("calculated_at", { ascending: false });
       if (error) throw error;
 
-      const rows: Lake[] = (data ?? [])
-        .filter((r) => r.lake_id != null)
-        .map((r) => ({
+      // Dedupe by lake_id (keep latest within day)
+      const seen = new Set<string>();
+      const rows: Lake[] = [];
+      for (const r of data ?? []) {
+        if (!r.lake_id || seen.has(r.lake_id)) continue;
+        seen.add(r.lake_id);
+        const lk = (r as any).lakes ?? {};
+        rows.push({
           lake_id: r.lake_id as string,
-          name: r.name ?? "—",
-          county: r.county,
-          distance_km: r.distance_km != null ? Number(r.distance_km) : null,
-          lat: r.lat != null ? Number(r.lat) : null,
-          lon: r.lon != null ? Number(r.lon) : null,
+          name: lk.name ?? "—",
+          county: lk.county ?? null,
+          distance_km: lk.distance_km != null ? Number(lk.distance_km) : null,
+          lat: lk.latitude != null ? Number(lk.latitude) : null,
+          lon: lk.longitude != null ? Number(lk.longitude) : null,
           score: r.score != null ? Number(r.score) : null,
           temperature: r.temperature != null ? Number(r.temperature) : null,
           temperature_delta: r.temperature_delta != null ? Number(r.temperature_delta) : null,
@@ -85,9 +118,9 @@ function Home() {
           wind_speed: r.wind_speed != null ? Number(r.wind_speed) : null,
           feeding_windows: parseFeedingWindows(r.feeding_windows),
           calculated_at: r.calculated_at,
-        }));
+        });
+      }
 
-      // Sort by score descending (primary requirement)
       rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
       return rows;
     },
@@ -151,6 +184,37 @@ function Home() {
         </button>
       </header>
 
+      {/* Date selector */}
+      <section className="-mx-4 mb-6 px-4">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <CalendarIcon className="h-3 w-3" /> Forecast day
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {dateOptions.map((d, i) => {
+            const iso = isoDate(d);
+            const active = iso === selectedDate;
+            const today = i === 0;
+            return (
+              <button
+                key={iso}
+                onClick={() => setSelectedDate(iso)}
+                className={`glass flex min-w-[64px] flex-col items-center rounded-2xl px-3 py-2 transition ${
+                  active
+                    ? "bg-primary text-primary-foreground ring-1 ring-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className="text-[10px] uppercase tracking-wider">
+                  {today ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short" })}
+                </span>
+                <span className="text-base font-semibold">{d.getDate()}</span>
+                <span className="text-[10px]">{d.toLocaleDateString("en-GB", { month: "short" })}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="glass mb-6 rounded-3xl p-4">
         <div className="flex items-baseline justify-between">
           <div>
@@ -158,8 +222,14 @@ function Home() {
             <p className="mt-0.5 text-2xl font-bold tracking-tight">{lakes.length}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Last updated</p>
-            <p className="mt-0.5 text-sm font-medium">{timeAgo(lastUpdated)}</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              {isToday ? "Last updated" : "Forecast for"}
+            </p>
+            <p className="mt-0.5 text-sm font-medium">
+              {isToday
+                ? timeAgo(lastUpdated)
+                : new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            </p>
           </div>
         </div>
       </section>
@@ -270,6 +340,7 @@ function Home() {
 
       <LakeDetailSheet
         lake={activeLake}
+        selectedDate={selectedDate}
         open={activeLake !== null}
         onOpenChange={(v) => !v && setActiveLake(null)}
       />
