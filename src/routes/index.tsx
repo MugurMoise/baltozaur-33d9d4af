@@ -222,8 +222,14 @@ function Home() {
             <p className="mt-0.5 text-2xl font-bold tracking-tight">{lakes.length}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Last updated</p>
-            <p className="mt-0.5 text-sm font-medium">{timeAgo(lastUpdated)}</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              {isToday ? "Last updated" : "Forecast for"}
+            </p>
+            <p className="mt-0.5 text-sm font-medium">
+              {isToday
+                ? timeAgo(lastUpdated)
+                : new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            </p>
           </div>
         </div>
       </section>
