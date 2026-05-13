@@ -1,10 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { LakeCard } from "@/components/LakeCard";
+import { LakeCard, type FeedingWindow } from "@/components/LakeCard";
 import { LakeDetailSheet } from "@/components/LakeDetailSheet";
-import { Fish, RefreshCw, Waves, Trophy, Sparkles, Calendar as CalendarIcon, Map as MapIcon } from "lucide-react";
+import { LakesMap, type MapLake } from "@/components/LakesMap";
+import { Fish, RefreshCw, Waves, Trophy, Sparkles, Map as MapIcon } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -14,42 +15,36 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Live carp activity scores, temperature, wind and pressure for the best fishing lakes around Bucharest.",
+          "Live carp activity scores, weather trends and feeding windows for the best fishing lakes around Bucharest.",
       },
     ],
   }),
 });
 
-type Row = {
-  lake_id: string | null;
-  name: string | null;
+export type Lake = {
+  lake_id: string;
+  name: string;
   county: string | null;
   distance_km: number | null;
+  lat: number | null;
+  lon: number | null;
   score: number | null;
   temperature: number | null;
+  temperature_delta: number | null;
   pressure: number | null;
+  pressure_delta: number | null;
   wind_speed: number | null;
+  feeding_windows: FeedingWindow[];
   calculated_at: string | null;
 };
 
-type ScoreRow = {
-  lake_id: string;
-  score: number;
-  temperature: number;
-  pressure: number;
-  wind_speed: number;
-  calculated_at: string;
-  lakes: { name: string; county: string | null; distance_km: number | null } | null;
-};
+function parseFeedingWindows(raw: unknown): FeedingWindow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((w): w is FeedingWindow => !!w && typeof w === "object" && "start" in w && "end" in w)
+    .map((w) => ({ start: String(w.start), end: String(w.end), label: w.label ? String(w.label) : undefined }));
+}
 
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 function timeAgo(iso?: string | null) {
   if (!iso) return "—";
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
@@ -61,53 +56,39 @@ function timeAgo(iso?: string | null) {
   return new Date(iso).toLocaleDateString("en-GB");
 }
 
-function buildDateOptions() {
-  const today = startOfDay(new Date());
-  return Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    return d;
-  });
-}
-
 function Home() {
-  const dateOptions = useMemo(buildDateOptions, []);
-  const [selectedDate, setSelectedDate] = useState<string>(isoDate(dateOptions[0]));
-  const [activeLake, setActiveLake] = useState<Row | null>(null);
+  const [activeLake, setActiveLake] = useState<Lake | null>(null);
 
   const { data, isLoading, isFetching, refetch, error } = useQuery({
-    queryKey: ["lake_scores_by_date", selectedDate],
+    queryKey: ["latest_lake_scores"],
     queryFn: async () => {
-      const start = new Date(selectedDate + "T00:00:00");
-      const end = new Date(start);
-      end.setDate(start.getDate() + 1);
-
       const { data, error } = await supabase
-        .from("lake_scores")
-        .select("lake_id, score, temperature, pressure, wind_speed, calculated_at, lakes(name, county, distance_km)")
-        .gte("calculated_at", start.toISOString())
-        .lt("calculated_at", end.toISOString())
+        .from("latest_lake_scores")
+        .select("*")
         .order("calculated_at", { ascending: false });
       if (error) throw error;
 
-      // Deduplicate: keep most recent row per lake for the day
-      const seen = new Set<string>();
-      const rows: Row[] = [];
-      for (const r of (data ?? []) as ScoreRow[]) {
-        if (seen.has(r.lake_id)) continue;
-        seen.add(r.lake_id);
-        rows.push({
-          lake_id: r.lake_id,
-          name: r.lakes?.name ?? "—",
-          county: r.lakes?.county ?? null,
-          distance_km: r.lakes?.distance_km ?? null,
-          score: r.score,
-          temperature: r.temperature,
-          pressure: r.pressure,
-          wind_speed: r.wind_speed,
+      const rows: Lake[] = (data ?? [])
+        .filter((r) => r.lake_id != null)
+        .map((r) => ({
+          lake_id: r.lake_id as string,
+          name: r.name ?? "—",
+          county: r.county,
+          distance_km: r.distance_km != null ? Number(r.distance_km) : null,
+          lat: r.lat != null ? Number(r.lat) : null,
+          lon: r.lon != null ? Number(r.lon) : null,
+          score: r.score != null ? Number(r.score) : null,
+          temperature: r.temperature != null ? Number(r.temperature) : null,
+          temperature_delta: r.temperature_delta != null ? Number(r.temperature_delta) : null,
+          pressure: r.pressure != null ? Number(r.pressure) : null,
+          pressure_delta: r.pressure_delta != null ? Number(r.pressure_delta) : null,
+          wind_speed: r.wind_speed != null ? Number(r.wind_speed) : null,
+          feeding_windows: parseFeedingWindows(r.feeding_windows),
           calculated_at: r.calculated_at,
-        });
-      }
+        }));
+
+      // Sort by score descending (primary requirement)
+      rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
       return rows;
     },
     staleTime: 0,
@@ -126,7 +107,21 @@ function Home() {
 
   const topLakes = lakes.slice(0, 3);
   const bestConditions = lakes.filter((l) => (l.score ?? 0) >= 75);
-  const isToday = selectedDate === isoDate(dateOptions[0]);
+
+  const mapLakes: MapLake[] = lakes
+    .filter((l) => l.lat != null && l.lon != null)
+    .map((l) => ({
+      id: l.lake_id,
+      name: l.name,
+      county: l.county,
+      distance_km: l.distance_km,
+      latitude: l.lat as number,
+      longitude: l.lon as number,
+      score: l.score,
+      temperature: l.temperature,
+      wind_speed: l.wind_speed,
+      pressure: l.pressure,
+    }));
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-xl px-4 pb-16 pt-8">
@@ -140,92 +135,55 @@ function Home() {
           </div>
           <div>
             <h1 className="text-xl font-bold leading-tight tracking-tight">
-              Top Carp Lakes Near Bucharest
+              Carp Lakes Near Bucharest
             </h1>
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Waves className="h-3 w-3" /> Live fishing conditions
+              <Waves className="h-3 w-3" /> Live conditions · auto-refresh 60s
             </p>
           </div>
         </div>
-        <div className="ml-2 flex shrink-0 items-center gap-2">
-          <Link
-            to="/map"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Open map"
-          >
-            <MapIcon className="h-4 w-4" />
-          </Link>
-          <button
-            onClick={() => refetch()}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Refresh"
-          >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+        <button
+          onClick={() => refetch()}
+          className="glass inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Refresh"
+        >
+          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+        </button>
       </header>
 
-      {/* Date selector */}
-      <section className="mb-5">
-        <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-          <CalendarIcon className="h-3.5 w-3.5" />
-          Forecast date
-        </div>
-        <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex gap-2">
-            {dateOptions.map((d, i) => {
-              const iso = isoDate(d);
-              const active = iso === selectedDate;
-              const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
-              const day = d.getDate();
-              const month = d.toLocaleDateString("en-GB", { month: "short" });
-              return (
-                <button
-                  key={iso}
-                  onClick={() => setSelectedDate(iso)}
-                  className={`flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 transition-colors ${
-                    active
-                      ? "border-primary bg-primary text-primary-foreground shadow-[var(--shadow-glow)]"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">
-                    {i === 0 ? "Today" : weekday}
-                  </span>
-                  <span className={`mt-0.5 text-lg font-bold leading-none ${active ? "" : "text-foreground"}`}>
-                    {day}
-                  </span>
-                  <span className="mt-0.5 text-[10px] opacity-80">{month}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="mb-6 rounded-2xl border border-border p-4"
-        style={{ background: "var(--gradient-card)" }}
-      >
+      <section className="glass mb-6 rounded-3xl p-4">
         <div className="flex items-baseline justify-between">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Lakes tracked</p>
             <p className="mt-0.5 text-2xl font-bold tracking-tight">{lakes.length}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              {isToday ? "Last updated" : "Forecast for"}
-            </p>
-            <p className="mt-0.5 text-sm font-medium">
-              {isToday
-                ? timeAgo(lastUpdated)
-                : new Date(selectedDate).toLocaleDateString("en-GB", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "short",
-                  })}
-            </p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Last updated</p>
+            <p className="mt-0.5 text-sm font-medium">{timeAgo(lastUpdated)}</p>
           </div>
+        </div>
+      </section>
+
+      {/* Map section */}
+      <section className="mb-7">
+        <SectionHeader
+          icon={<MapIcon className="h-4 w-4 text-primary" />}
+          title="Lakes Map"
+          subtitle="Markers colored by activity score"
+        />
+        <div className="glass mt-3 h-[320px] w-full overflow-hidden rounded-3xl p-1">
+          {mapLakes.length > 0 ? (
+            <LakesMap lakes={mapLakes} />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+              No coordinates available.
+            </div>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-[11px] text-muted-foreground">
+          <LegendDot color="var(--color-score-high)" label="> 75" />
+          <LegendDot color="var(--color-score-mid)" label="50–75" />
+          <LegendDot color="var(--color-score-low)" label="< 50" />
         </div>
       </section>
 
@@ -238,15 +196,12 @@ function Home() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-2xl bg-card/60" />
+            <div key={i} className="h-40 animate-pulse rounded-3xl bg-white/5" />
           ))}
         </div>
       ) : lakes.length === 0 ? (
-        <div
-          className="rounded-2xl border border-border p-6 text-center text-sm text-muted-foreground"
-          style={{ background: "var(--gradient-card)" }}
-        >
-          No forecast available for this date yet.
+        <div className="glass rounded-3xl p-6 text-center text-sm text-muted-foreground">
+          No lakes with forecast data yet.
         </div>
       ) : (
         <>
@@ -255,11 +210,11 @@ function Home() {
               <SectionHeader
                 icon={<Trophy className="h-4 w-4 text-[var(--color-score-mid)]" />}
                 title="Top Lakes"
-                subtitle={isToday ? "Highest scoring spots right now" : "Highest scoring spots for this day"}
+                subtitle="Highest scoring spots right now"
               />
               <ul className="mt-3 space-y-3">
                 {topLakes.map((l, i) => (
-                  <li key={l.lake_id ?? `top-${i}`}>
+                  <li key={`top-${l.lake_id}`}>
                     <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                   </li>
                 ))}
@@ -280,17 +235,14 @@ function Home() {
             {bestConditions.length > 0 ? (
               <ul className="mt-3 space-y-3">
                 {bestConditions.map((l, i) => (
-                  <li key={l.lake_id ?? `best-${i}`}>
+                  <li key={`best-${l.lake_id}`}>
                     <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                   </li>
                 ))}
               </ul>
             ) : (
-              <div
-                className="mt-3 rounded-2xl border border-border p-5 text-sm text-muted-foreground"
-                style={{ background: "var(--gradient-card)" }}
-              >
-                Conditions are average — try another date.
+              <div className="glass mt-3 rounded-3xl p-5 text-sm text-muted-foreground">
+                Conditions are average — check back later.
               </div>
             )}
           </section>
@@ -303,7 +255,7 @@ function Home() {
             />
             <ul className="mt-3 space-y-3">
               {lakes.map((l, i) => (
-                <li key={l.lake_id ?? `all-${i}`}>
+                <li key={`all-${l.lake_id}`}>
                   <LakeCardButton lake={l} rank={i + 1} onSelect={setActiveLake} />
                 </li>
               ))}
@@ -313,12 +265,11 @@ function Home() {
       )}
 
       <footer className="mt-8 text-center text-xs text-muted-foreground">
-        Updated periodically · score reflects estimated carp activity
+        Auto-refreshes every 60 seconds · score reflects estimated carp activity
       </footer>
 
       <LakeDetailSheet
         lake={activeLake}
-        selectedDate={selectedDate}
         open={activeLake !== null}
         onOpenChange={(v) => !v && setActiveLake(null)}
       />
@@ -331,24 +282,28 @@ function LakeCardButton({
   rank,
   onSelect,
 }: {
-  lake: Row;
+  lake: Lake;
   rank: number;
-  onSelect: (l: Row) => void;
+  onSelect: (l: Lake) => void;
 }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(lake)}
-      className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-2xl"
+      className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-3xl"
     >
       <LakeCard
-        name={lake.name ?? "—"}
+        name={lake.name}
         county={lake.county}
         distance_km={lake.distance_km}
         score={lake.score}
         temperature={lake.temperature}
+        temperature_delta={lake.temperature_delta}
         pressure={lake.pressure}
+        pressure_delta={lake.pressure_delta}
         wind_speed={lake.wind_speed}
+        feeding_windows={lake.feeding_windows}
+        calculated_at={lake.calculated_at}
         rank={rank}
       />
     </button>
@@ -366,7 +321,7 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-secondary/60">
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/8 ring-1 ring-white/10">
         {icon}
       </span>
       <div>
@@ -374,5 +329,14 @@ function SectionHeader({
         {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
       </div>
     </div>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
   );
 }
