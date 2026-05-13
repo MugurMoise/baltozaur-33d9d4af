@@ -64,7 +64,7 @@ function MapPage() {
         .select("lake_id, score, temperature, pressure, wind_speed, calculated_at, lakes(name, county, distance_km, latitude, longitude)")
         .gte("calculated_at", start.toISOString())
         .lt("calculated_at", end.toISOString())
-        .order("score", { ascending: false });
+        .order("calculated_at", { ascending: false });
       if (error) throw error;
 
       const seen = new Set<string>();
@@ -88,6 +88,11 @@ function MapPage() {
       }
       return out;
     },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
 
   const lakes = data ?? [];

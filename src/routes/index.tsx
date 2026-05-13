@@ -87,10 +87,10 @@ function Home() {
         .select("lake_id, score, temperature, pressure, wind_speed, calculated_at, lakes(name, county, distance_km)")
         .gte("calculated_at", start.toISOString())
         .lt("calculated_at", end.toISOString())
-        .order("score", { ascending: false });
+        .order("calculated_at", { ascending: false });
       if (error) throw error;
 
-      // Deduplicate: keep highest-scoring row per lake for the day
+      // Deduplicate: keep most recent row per lake for the day
       const seen = new Set<string>();
       const rows: Row[] = [];
       for (const r of (data ?? []) as ScoreRow[]) {
@@ -110,6 +110,11 @@ function Home() {
       }
       return rows;
     },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
 
   const lakes = data ?? [];
