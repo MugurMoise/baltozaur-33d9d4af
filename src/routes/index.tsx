@@ -334,6 +334,7 @@ function Home() {
 
       <LakeDetailSheet
         lake={activeLake}
+        selectedDate={selectedDate}
         open={activeLake !== null}
         onOpenChange={(v) => !v && setActiveLake(null)}
       />
