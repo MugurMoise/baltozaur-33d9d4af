@@ -5,7 +5,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { LakeCard, type FeedingWindow } from "@/components/LakeCard";
 import { LakeDetailSheet } from "@/components/LakeDetailSheet";
 import { LakesMap, type MapLake } from "@/components/LakesMap";
-import { Fish, RefreshCw, Waves, Trophy, Sparkles, Map as MapIcon } from "lucide-react";
+import { Fish, RefreshCw, Waves, Trophy, Sparkles, Map as MapIcon, Calendar as CalendarIcon } from "lucide-react";
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function isoDate(d: Date) {
+  return startOfDay(d).toISOString();
+}
+function buildDateOptions() {
+  const today = startOfDay(new Date());
+  return Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d;
+  });
+}
 
 export const Route = createFileRoute("/")({
   component: Home,
