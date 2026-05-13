@@ -72,6 +72,8 @@ export type Database = {
           created_at: string
           distance_km: number
           id: string
+          latitude: number | null
+          longitude: number | null
           name: string
         }
         Insert: {
@@ -79,6 +81,8 @@ export type Database = {
           created_at?: string
           distance_km: number
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           name: string
         }
         Update: {
@@ -86,6 +90,8 @@ export type Database = {
           created_at?: string
           distance_km?: number
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           name?: string
         }
         Relationships: []
