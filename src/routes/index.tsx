@@ -75,25 +75,41 @@ function timeAgo(iso?: string | null) {
 
 function Home() {
   const [activeLake, setActiveLake] = useState<Lake | null>(null);
+  const dateOptions = buildDateOptions();
+  const [selectedDate, setSelectedDate] = useState<string>(isoDate(new Date()));
+  const isToday = selectedDate === isoDate(new Date());
 
   const { data, isLoading, isFetching, refetch, error } = useQuery({
-    queryKey: ["latest_lake_scores"],
+    queryKey: ["lake_scores_by_date", selectedDate],
     queryFn: async () => {
+      const start = new Date(selectedDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+
       const { data, error } = await supabase
-        .from("latest_lake_scores")
-        .select("*")
+        .from("lake_scores")
+        .select(
+          "lake_id, score, temperature, temperature_delta, pressure, pressure_delta, wind_speed, feeding_windows, calculated_at, lakes(name, county, distance_km, latitude, longitude)",
+        )
+        .gte("calculated_at", start.toISOString())
+        .lt("calculated_at", end.toISOString())
         .order("calculated_at", { ascending: false });
       if (error) throw error;
 
-      const rows: Lake[] = (data ?? [])
-        .filter((r) => r.lake_id != null)
-        .map((r) => ({
+      // Dedupe by lake_id (keep latest within day)
+      const seen = new Set<string>();
+      const rows: Lake[] = [];
+      for (const r of data ?? []) {
+        if (!r.lake_id || seen.has(r.lake_id)) continue;
+        seen.add(r.lake_id);
+        const lk = (r as any).lakes ?? {};
+        rows.push({
           lake_id: r.lake_id as string,
-          name: r.name ?? "—",
-          county: r.county,
-          distance_km: r.distance_km != null ? Number(r.distance_km) : null,
-          lat: r.lat != null ? Number(r.lat) : null,
-          lon: r.lon != null ? Number(r.lon) : null,
+          name: lk.name ?? "—",
+          county: lk.county ?? null,
+          distance_km: lk.distance_km != null ? Number(lk.distance_km) : null,
+          lat: lk.latitude != null ? Number(lk.latitude) : null,
+          lon: lk.longitude != null ? Number(lk.longitude) : null,
           score: r.score != null ? Number(r.score) : null,
           temperature: r.temperature != null ? Number(r.temperature) : null,
           temperature_delta: r.temperature_delta != null ? Number(r.temperature_delta) : null,
@@ -102,9 +118,9 @@ function Home() {
           wind_speed: r.wind_speed != null ? Number(r.wind_speed) : null,
           feeding_windows: parseFeedingWindows(r.feeding_windows),
           calculated_at: r.calculated_at,
-        }));
+        });
+      }
 
-      // Sort by score descending (primary requirement)
       rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
       return rows;
     },
