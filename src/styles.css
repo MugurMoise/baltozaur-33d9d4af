@@ -73,10 +73,30 @@
     border-color: var(--color-border);
   }
   html, body {
-    background: var(--gradient-sky);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, oklch(0.36 0.12 220 / 0.35), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, oklch(0.42 0.15 195 / 0.25), transparent 60%),
+      var(--gradient-sky);
+    background-attachment: fixed;
     color: var(--color-foreground);
     min-height: 100vh;
     font-family: var(--font-display);
     -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: linear-gradient(145deg, color-mix(in oklab, white 6%, transparent), color-mix(in oklab, white 2%, transparent));
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid color-mix(in oklab, white 10%, transparent);
+    box-shadow: 0 10px 40px -16px rgba(0, 0, 0, 0.55), inset 0 1px 0 color-mix(in oklab, white 8%, transparent);
+  }
+  .glass-strong {
+    background: linear-gradient(145deg, color-mix(in oklab, white 10%, transparent), color-mix(in oklab, white 4%, transparent));
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid color-mix(in oklab, white 14%, transparent);
   }
 }
