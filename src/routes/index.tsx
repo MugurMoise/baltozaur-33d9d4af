@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LakeCard } from "@/components/LakeCard";
 import { LakeDetailSheet } from "@/components/LakeDetailSheet";
-import { Fish, RefreshCw, Waves, Trophy, Sparkles, Calendar as CalendarIcon } from "lucide-react";
+import { Fish, RefreshCw, Waves, Trophy, Sparkles, Calendar as CalendarIcon, Map as MapIcon } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -142,13 +142,22 @@ function Home() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Refresh"
-        >
-          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-        </button>
+        <div className="ml-2 flex shrink-0 items-center gap-2">
+          <Link
+            to="/map"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Open map"
+          >
+            <MapIcon className="h-4 w-4" />
+          </Link>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </header>
 
       {/* Date selector */}
