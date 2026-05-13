@@ -184,6 +184,37 @@ function Home() {
         </button>
       </header>
 
+      {/* Date selector */}
+      <section className="-mx-4 mb-6 px-4">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <CalendarIcon className="h-3 w-3" /> Forecast day
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {dateOptions.map((d, i) => {
+            const iso = isoDate(d);
+            const active = iso === selectedDate;
+            const today = i === 0;
+            return (
+              <button
+                key={iso}
+                onClick={() => setSelectedDate(iso)}
+                className={`glass flex min-w-[64px] flex-col items-center rounded-2xl px-3 py-2 transition ${
+                  active
+                    ? "bg-primary text-primary-foreground ring-1 ring-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className="text-[10px] uppercase tracking-wider">
+                  {today ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short" })}
+                </span>
+                <span className="text-base font-semibold">{d.getDate()}</span>
+                <span className="text-[10px]">{d.toLocaleDateString("en-GB", { month: "short" })}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="glass mb-6 rounded-3xl p-4">
         <div className="flex items-baseline justify-between">
           <div>
