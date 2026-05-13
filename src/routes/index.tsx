@@ -110,6 +110,11 @@ function Home() {
       }
       return rows;
     },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
 
   const lakes = data ?? [];
